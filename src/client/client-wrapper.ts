@@ -1,69 +1,68 @@
+import axios from 'axios';
+import * as querystring from 'query-string';
 import * as grpc from 'grpc';
-import * as needle from 'needle';
 import { Field } from '../core/base-step';
-import { FieldDefinition } from '../proto/cog_pb';
-import { UserAwareMixin } from './mixins';
+import { EventAwareMixin } from './mixins';
 
-/**
- * This is a wrapper class around the API client for your Cog. An instance of
- * this class is passed to the constructor of each of your steps, and can be
- * accessed on each step as this.client.
- */
 class ClientWrapper {
 
-  /**
-   * This is an array of field definitions, each corresponding to a field that
-   * your API client requires for authentication. Depending on the underlying
-   * system, this could include bearer tokens, basic auth details, endpoints,
-   * etc.
-   *
-   * If your Cog does not require authentication, set this to an empty array.
-   */
-  public static expectedAuthFields: Field[] = [{
-    field: 'userAgent',
-    type: FieldDefinition.Type.STRING,
-    description: 'User Agent String',
-    help: 'This is for demonstration purposes only. In an actual Cog, you would use this field to describe how to find this auth field in the underlying system.',
-  }];
+  public static expectedAuthFields: Field[] = [];
 
-  /**
-   * Private instance of the wrapped API client. You will almost certainly want
-   * to swap this out for an API client specific to your Cog's needs.
-   */
   public client: any;
+  public clientReady: Promise<boolean>;
 
-  /**
-   * Constructs an instance of the ClientWwrapper, authenticating the wrapped
-   * client in the process.
-   *
-   * @param auth - An instance of GRPC Metadata for a given RunStep or RunSteps
-   *   call. Will be populated with authentication metadata according to the
-   *   expectedAuthFields array defined above.
-   *
-   * @param clientConstructor - An optional parameter Used only as a means to
-   *   simplify automated testing. Should default to the class/constructor of
-   *   the underlying/wrapped API client.
-   */
-  constructor (auth: grpc.Metadata, clientConstructor = needle) {
-    // Call auth.get() for any field defined in the static expectedAuthFields
-    // array here. The argument passed to get() should match the "field" prop
-    // declared on the definition object above.
-    const uaString: string = auth.get('userAgent').toString();
+  constructor(auth: grpc.Metadata, clientConstructor = axios) {
     this.client = clientConstructor;
 
-    // Authenticate the underlying client here.
-    this.client.defaults({ user_agent: uaString });
-  }
+    try {
+      // auth.set('clientId','9465beee-0d11-40d8-a1ab-72f416de7893');
+      // auth.set('clientSecret','q7jomDcHvxhIBWtUTBSobUMz');
+      // auth.set('refreshToken','eyJraWQiOiJvYXV0aHYyLmxtaS5jb20uMDIxOSIsImFsZyI6IlJTNTEyIn0.eyJzYyI6ImNvbGxhYjoiLCJzdWIiOiIxNzU1Njg4NDk3MTExNDA5OTg5IiwiYXVkIjoiOTQ2NWJlZWUtMGQxMS00MGQ4LWExYWItNzJmNDE2ZGU3ODkzIiwib2duIjoicHdkIiwidHlwIjoiciIsImV4cCI6MTY2MDk2MzcyMSwiaWF0IjoxNjU4MzcxNzIxLCJqdGkiOiJkNGQxNmE3ZS03ZmU3LTRhZWQtYTIxYS03NjQwZGNhODIzYzQifQ.GI1LtrhTyb9INOdMTfQWwqGOmK9VVOkQU8bk9EKZLqRXQj06GNm-Oo-PQIMu12zexXceWs-jTz0Bs2tc_GzaDmmQ27hVZivDiH2ZePbhKQgabzGjWhn-IMq0PNjNwCprLp_kTV9ScN46Uhq77YWtPFrc2UNBWLGhRMP960wwUaQMO4Oq4qzlDYpVKGhpLx-ybzJPCV4u3Zofz4PVxyWgk1hoHxaCn2DhwaqSGzmW8JcG071IERyNfHsOauhiCwSIrxZU795bUFew9zcLHIDPqbnSGgIHCJybhOIgxT3jwEaojchpm6c5WL7npQ21zVylEXOnELiXa5JVP9B8fevb7Q');
+      if (auth.get('refreshToken').toString() && auth.get('clientId').toString() && auth.get('clientSecret').toString()) {
+        this.clientReady = new Promise(async (resolve, reject) => {
+          try {
+            const authToken = Buffer.from(`${auth.get('clientId').toString()}:${auth.get('clientSecret').toString()}`).toString('base64');
 
+            const tokenResponse = await this.client.post('https://customapi.goldcast.io/oauth/token', querystring.stringify({
+              'grant_type': 'refresh_token',
+              'refresh_token': auth.get('refreshToken').toString(),
+            }), {
+              headers: {
+                'Authorization': `Basic ${authToken}`,
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+            });
+
+            if (tokenResponse.data['access_token']) {
+              this.client.defaults.baseURL = 'https://customapi.goldcast.io/';
+              this.client.defaults.headers.common['Authorization'] = `Bearer ${tokenResponse.data['access_token']}`;
+              this.client.defaults.headers.post['Content-Type'] = 'application/x-www-form-urlencoded';
+              this.client.defaults.headers.get['Content-Type'] = 'application/json';
+
+              resolve(true);
+            } else {
+              reject('Access Token was not retrieved. Please try to reconnect.');
+            }
+          } catch (e) {
+            reject(e.response.data);
+          }
+        });
+      } else {
+        this.clientReady = Promise.reject('Refresh Token was not provided. Try reconnecting to you goldcast instance.');
+      }
+    } catch (e) {
+      throw e;
+    }
+  }
 }
 
-interface ClientWrapper extends UserAwareMixin {}
-applyMixins(ClientWrapper, [UserAwareMixin]);
+interface ClientWrapper extends EventAwareMixin { }
+applyMixins(ClientWrapper, [EventAwareMixin]);
 
 function applyMixins(derivedCtor: any, baseCtors: any[]) {
   baseCtors.forEach((baseCtor) => {
     Object.getOwnPropertyNames(baseCtor.prototype).forEach((name) => {
-          // tslint:disable-next-line:max-line-length
+      // tslint:disable-next-line:max-line-length
       Object.defineProperty(derivedCtor.prototype, name, Object.getOwnPropertyDescriptor(baseCtor.prototype, name));
     });
   });
