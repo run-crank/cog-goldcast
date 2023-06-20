@@ -29,7 +29,7 @@ You will be asked for the following authentication details on installation. To a
 
 | Field | Install-Time Environment Variable | Description |
 | --- | --- | --- |
-| **userAgent** | `CRANK_AUTOMATONINC_GOLDCAST__USERAGENT` | User Agent String |
+| **token** | `CRANK_AUTOMATONINC_GOLDCAST__TOKEN` | Personal Access Token |
 
 ```shell-session
 # Re-authenticate by running this
