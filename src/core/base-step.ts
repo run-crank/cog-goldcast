@@ -15,6 +15,7 @@ export interface Field {
   description: string;
   help?: string;
   optionality?: number;
+  bulksupport?: boolean;
 }
 
 export interface ExpectedRecord {
@@ -32,6 +33,8 @@ export abstract class BaseStep {
   protected expectedFields: Field[];
   protected expectedRecords?: ExpectedRecord[];
   protected stepHelp?: string;
+  protected actionList?: string[];
+  protected targetObject?: string;
 
   constructor(protected client: ClientWrapper) { }
 
@@ -50,6 +53,14 @@ export abstract class BaseStep {
       stepDefinition.setHelp(this.stepHelp);
     }
 
+    if (this.actionList) {
+      stepDefinition.setActionList(this.actionList);
+    }
+
+    if (this.targetObject) {
+      stepDefinition.setTargetObject(this.targetObject);
+    }
+
     this.expectedFields.forEach((field: Field) => {
       const expectedField = new FieldDefinition();
       expectedField.setType(field.type);
@@ -64,6 +75,12 @@ export abstract class BaseStep {
         expectedField.setOptionality(field.optionality);
       } else {
         expectedField.setOptionality(FieldDefinition.Optionality.REQUIRED);
+      }
+
+      if (field.hasOwnProperty('bulksupport')) {
+        expectedField.setBulksupport(field.bulksupport);
+      } else {
+        expectedField.setBulksupport(false);
       }
 
       stepDefinition.addExpectedFields(expectedField);
@@ -87,8 +104,8 @@ export abstract class BaseStep {
     return stepDefinition;
   }
 
-  assert(operator: string, actualValue: string, value: string, field: string): util.AssertionResult {
-    return util.assert(operator, actualValue, value, field);
+  assert(operator: string, actualValue: string, value: string, field: string, piiLevel: string = null): util.AssertionResult {
+    return util.assert(operator, actualValue, value, field, piiLevel);
   }
 
   protected pass(message: string, messageArgs: any[] = [], records: StepRecord[] = []): RunStepResponse {

@@ -9,6 +9,7 @@ import { Cog } from '../../src/core/cog';
 import { CogManifest } from '../../src/proto/cog_pb';
 import { Metadata } from 'grpc';
 import { Duplex } from 'stream';
+import { Struct } from 'google-protobuf/google/protobuf/struct_pb';
 
 chai.use(sinonChai);
 
@@ -38,11 +39,10 @@ describe('Cog:GetManifest', () => {
         return field.toObject();
       });
 
-      // Useragent auth field
-      const ua: any = authFields.filter(a => a.key === 'userAgent')[0];
-      expect(ua.type).to.equal(FieldDefinition.Type.STRING);
-      expect(ua.optionality).to.equal(FieldDefinition.Optionality.REQUIRED);
-      expect(!!ua.help).to.equal(true);
+      // token auth field
+      const token: any = authFields.filter(a => a.key === 'token')[0];
+      expect(token.type).to.equal(FieldDefinition.Type.STRING);
+      expect(token.optionality).to.equal(FieldDefinition.Optionality.REQUIRED);
 
       done();
     });
@@ -52,9 +52,13 @@ describe('Cog:GetManifest', () => {
     cogUnderTest.getManifest(null, (err, manifest: CogManifest) => {
       const stepDefs: StepDefinition[] = manifest.getStepDefinitionsList();
 
-      // Step definitions list includes user-field-equals step.
-      const hasUserFieldEquals: boolean = stepDefs.filter(s => s.getStepId() === 'UserFieldEqualsStep').length === 1;
-      expect(hasUserFieldEquals).to.equal(true);
+      // Step definitions list includes event-field-equals step.
+      const hasEventFieldEquals: boolean = stepDefs.filter(s => s.getStepId() === 'EventFieldEqualsStep').length === 1;
+      expect(hasEventFieldEquals).to.equal(true);
+
+      // Step definitions list includes event-member-equals step.
+      const hasEventMemberFieldEquals: boolean = stepDefs.filter(s => s.getStepId() === 'EventMemberFieldEqualsStep').length === 1;
+      expect(hasEventMemberFieldEquals).to.equal(true);
 
       done();
     });
@@ -66,28 +70,39 @@ describe('Cog:RunStep', () => {
   const expect = chai.expect;
   let protoStep: ProtoStep;
   let grpcUnaryCall: any = {};
+  let step: any = {};
   let cogUnderTest: Cog;
   let clientWrapperStub: any;
+  const redisClient: any = '';
+  const requestId: string = '1';
+  const scenarioId: string = '2';
+  const requestorId: string = '3';
 
   beforeEach(() => {
     protoStep = new ProtoStep();
+    protoStep.setData(Struct.fromJavaScript({
+      connection: 'anyId',
+    }));
     grpcUnaryCall.request = {
       getStep: function () {return protoStep},
+      getRequestId () { return requestId; },
+      getScenarioId () { return scenarioId; },
+      getRequestorId () { return requestorId; },
       metadata: null
     };
     clientWrapperStub = sinon.stub();
     cogUnderTest = new Cog(clientWrapperStub);
   });
 
-  it('authenticates client wrapper with call metadata', (done) => {
+  it('bypasses caching with bad redisUrl', (done) => {
     // Construct grpc metadata and assert the client was authenticated.
     grpcUnaryCall.metadata = new Metadata();
-    grpcUnaryCall.metadata.add('anythingReally', 'some-value');
+    grpcUnaryCall.metadata.add('token', 'some-value');
 
     cogUnderTest.runStep(grpcUnaryCall, (err, response: RunStepResponse) => {
-      expect(clientWrapperStub).to.have.been.calledWith(grpcUnaryCall.metadata);
+      expect(clientWrapperStub).to.have.not.been.called;
       done();
-    })
+    }).catch(done);
   });
 
   it('responds with error when called with unknown stepId', (done) => {
@@ -152,21 +167,17 @@ describe('Cog:RunSteps', () => {
     grpcDuplexStream.metadata = new Metadata();
     clientWrapperStub = sinon.stub();
     cogUnderTest = new Cog(clientWrapperStub);
-  });
-
-  it('authenticates client wrapper with call metadata', () => {
-    runStepRequest.setStep(protoStep);
 
     // Construct grpc metadata and assert the client was authenticated.
-    grpcDuplexStream.metadata.add('anythingReally', 'some-value');
+    grpcDuplexStream.metadata.add('token', 'some-value');
+  });
+
+  it('bypasses caching with bad redisUrl', () => {
+    runStepRequest.setStep(protoStep);
 
     cogUnderTest.runSteps(grpcDuplexStream);
     grpcDuplexStream.emit('data', runStepRequest);
-    expect(clientWrapperStub).to.have.been.calledWith(grpcDuplexStream.metadata);
-
-    // Does not attempt to reinstantiate client.
-    grpcDuplexStream.emit('data', runStepRequest);
-    return expect(clientWrapperStub).to.have.been.calledOnce;
+    expect(clientWrapperStub).to.have.not.been.called;
 });
 
   it('responds with error when called with unknown stepId', (done) => {

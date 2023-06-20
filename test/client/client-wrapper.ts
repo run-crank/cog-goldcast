@@ -10,34 +10,40 @@ chai.use(sinonChai);
 
 describe('ClientWrapper', () => {
   const expect = chai.expect;
-  let needleConstructorStub: any;
+  let axiosStub: any;
   let metadata: Metadata;
   let clientWrapperUnderTest: ClientWrapper;
 
   beforeEach(() => {
-    needleConstructorStub = sinon.stub();
-    needleConstructorStub.defaults = sinon.stub();
+    axiosStub = sinon.stub();
+    axiosStub.post = sinon.stub();
+    axiosStub.delete = sinon.stub();
+    axiosStub.get = sinon.stub();
+    axiosStub.defaults = {
+      baseURL: '',
+      headers: {
+        common: {
+          Authorization: '',
+        },
+        post: {
+          'Content-Type': '',
+        },
+        get: {
+          'Content-Type': '',
+        }
+      }
+    };
   });
 
   it('authenticates', () => {
     // Construct grpc metadata and assert the client was authenticated.
-    const expectedCallArgs = { user_agent: 'Some/UserAgent String' };
+    const expectedCallArgs = { token: 'some-api-key' };
     metadata = new Metadata();
-    metadata.add('userAgent', expectedCallArgs.user_agent);
+    metadata.add('token', expectedCallArgs.token);
 
     // Assert that the underlying API client was authenticated correctly.
-    clientWrapperUnderTest = new ClientWrapper(metadata, needleConstructorStub);
-    expect(needleConstructorStub.defaults).to.have.been.calledWith(expectedCallArgs);
-  });
-
-  it('getUserByEmail', () => {
-    const expectedEmail = 'test@example.com';
-    clientWrapperUnderTest = new ClientWrapper(metadata, needleConstructorStub);
-    clientWrapperUnderTest.getUserByEmail(expectedEmail);
-
-    expect(needleConstructorStub).to.have.been.calledWith(
-      `https://jsonplaceholder.typicode.com/users?email=${expectedEmail}`,
-    );
+    clientWrapperUnderTest = new ClientWrapper(metadata, axiosStub);
+    expect(axiosStub.defaults.headers.common['Authorization']).to.be.equal(`Token ${expectedCallArgs.token}`)
   });
 
 });

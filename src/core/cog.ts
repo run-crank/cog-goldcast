@@ -17,42 +17,42 @@ export class Cog implements ICogServiceServer {
   private steps: StepInterface[];
   private redisClient: any;
 
- // tslint:disable-next-line:max-line-length
- constructor (private clientWrapperClass, private stepMap: Record<string, any> = {}, private redisUrl: string = undefined, any> = {}) {
+// tslint:disable-next-line:max-line-length
+  constructor (private clientWrapperClass, private stepMap: Record<string, any> = {}, private redisUrl: string = undefined) {
   // tslint:disable-next-line:max-line-length
-  this.steps = [].concat(...Object.values(this.getSteps(`${__dirname}/../steps`, clientWrapperClass)));
-  this.redisClient = null;
-  if (this.redisUrl) {
-    const c = redis.createClient(this.redisUrl);
-    // let emailSent = false;
-    // This seems like it needs to be updated and remove emailSent.
-    // Set the "client" variable to the actual redis client instance
-    // once a connection is established with the Redis server
-    c.on('ready', () => {
-      this.redisClient = c;
-    });
-    // Handle the error event so that it doesn't crash
-    c.on('error', () => {
-      // Send an email if a bad redisUrl is passed
-      // tslint:disable-next-line:max-line-length
-     // if (this.mailgunCredentials.apiKey && this.mailgunCredentials.domain && this.mailgunCredentials.alertEmail && !emailSent) {
+    this.steps = [].concat(...Object.values(this.getSteps(`${__dirname}/../steps`, clientWrapperClass)));
+    this.redisClient = null;
+    if (this.redisUrl) {
+      const c = redis.createClient(this.redisUrl);
+      // let emailSent = false;
+
+      // Set the "client" variable to the actual redis client instance
+      // once a connection is established with the Redis server
+      c.on('ready', () => {
+        this.redisClient = c;
+      });
+      // Handle the error event so that it doesn't crash
+      c.on('error', () => {
+        // Send an email if a bad redisUrl is passed
         // tslint:disable-next-line:max-line-length
-      //  const mg = mailgun({ apiKey: this.mailgunCredentials.apiKey, domain: this.mailgunCredentials.domain });
-      //  const emailData = {
-      //    from: `HubSpot Cog <noreply@${this.mailgunCredentials.domain}>`,
-      //    to: this.mailgunCredentials.alertEmail,
-      //    subject: 'Broken Redis Url in HubSpot Cog',
-       //   text: 'The redis url in the HubSpot Cog is no longer working. Caching is disabled for the HubSpot Cog.',
-      //  };
-     //   mg.messages().send(emailData, (error, body) => {
-     //     console.log('email sent: ', body);
-        });
-        // Set emailSent to true so we don't send duplicate emails on multiple errors
-   //     emailSent = true;
-      }
-    });
+      // if (this.mailgunCredentials.apiKey && this.mailgunCredentials.domain && this.mailgunCredentials.alertEmail && !emailSent) {
+      //     tslint:disable-next-line:max-line-length
+      //    const mg = mailgun({ apiKey: this.mailgunCredentials.apiKey, domain: this.mailgunCredentials.domain });
+      //    const emailData = {
+      //      from: `HubSpot Cog <noreply@${this.mailgunCredentials.domain}>`,
+      //      to: this.mailgunCredentials.alertEmail,
+      //      subject: 'Broken Redis Url in HubSpot Cog',
+      //     text: 'The redis url in the HubSpot Cog is no longer working. Caching is disabled for the HubSpot Cog.',
+      //    };
+      //   mg.messages().send(emailData, (error, body) => {
+      //     console.log('email sent: ', body);
+      //     });
+      //     Set emailSent to true so we don't send duplicate emails on multiple errors
+      //       emailSent = true;
+      //   }
+      });
+    }
   }
-}
 
   private getSteps(dir: string, clientWrapperClass) {
     const steps = fs.readdirSync(dir, { withFileTypes: true })
@@ -123,7 +123,6 @@ export class Cog implements ICogServiceServer {
    */
   runSteps(call: grpc.ServerDuplexStream<RunStepRequest, RunStepResponse>) {
     // Instantiate a single client for all step requests.
-    const client = this.instantiateClient(call.metadata);
     let processing = 0;
     let clientEnded = false;
     let client: any = null;
@@ -177,7 +176,7 @@ export class Cog implements ICogServiceServer {
     callback: grpc.sendUnaryData<RunStepResponse>,
   ) {
     const step: Step = call.request.getStep();
-    const response: RunStepResponse = await this.dispatchStep(step, call.metadata);
+    const response: RunStepResponse = await this.dispatchStep(step, call.request, call.metadata);
     callback(null, response);
   }
 
@@ -185,7 +184,7 @@ export class Cog implements ICogServiceServer {
    * Helper method to dispatch a given step to its corresponding step class and handle error
    * scenarios. Always resolves to a RunStepResponse, regardless of any underlying errors.
    */
-   private async dispatchStep(
+  private async dispatchStep(
     step: Step,
     runStepRequest: RunStepRequest,
     metadata: grpc.Metadata,
@@ -228,7 +227,7 @@ export class Cog implements ICogServiceServer {
   /**
    * Helper method to instantiate an API client wrapper for this Cog.
    */
-   private getClientWrapper(auth: grpc.Metadata, idMap: {} = null) {
+  private getClientWrapper(auth: grpc.Metadata, idMap: {} = null) {
     if (this.redisClient) {
       const client = new ClientWrapper(auth);
       return new this.clientWrapperClass(client, this.redisClient, idMap);

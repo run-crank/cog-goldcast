@@ -5,11 +5,11 @@ import * as sinonChai from 'sinon-chai';
 import 'mocha';
 
 import { Step as ProtoStep, StepDefinition, FieldDefinition, RunStepResponse, RecordDefinition, StepRecord } from '../../../src/proto/cog_pb';
-import { Step } from '../../../src/steps/users/user-field-equals';
+import { Step } from '../../../src/steps/event/event-field-equals';
 
 chai.use(sinonChai);
 
-describe('UserFieldEqualsStep', () => {
+describe('EventFieldEqualsStep', () => {
   const expect = chai.expect;
   let protoStep: ProtoStep;
   let stepUnderTest: Step;
@@ -18,17 +18,16 @@ describe('UserFieldEqualsStep', () => {
   beforeEach(() => {
     // An example of how you can stub/mock API client methods.
     apiClientStub = sinon.stub();
-    apiClientStub.getUserByEmail = sinon.stub();
+    apiClientStub.getEvents = sinon.stub();
     stepUnderTest = new Step(apiClientStub);
     protoStep = new ProtoStep();
   });
 
   it('should return expected step metadata', () => {
     const stepDef: StepDefinition = stepUnderTest.getDefinition();
-    expect(stepDef.getStepId()).to.equal('UserFieldEqualsStep');
-    expect(stepDef.getName()).to.equal('Check a field on a JSON Placeholder user');
-    expect(!!stepDef.getHelp()).to.equal(true);
-    expect(stepDef.getExpression()).to.equal('the (?<field>.+) field on JSON Placeholder user (?<email>.+) should (?<operator>be set|not be set|be less than|be greater than|be one of|be|contain|not be one of|not be|not contain) ?(?<expectation>.+)?');
+    expect(stepDef.getStepId()).to.equal('EventFieldEqualsStep');
+    expect(stepDef.getName()).to.equal('Check a field on a Goldcast Event');
+    expect(stepDef.getExpression()).to.equal('the (?<field>[a-zA-Z0-9_-]+) field on goldcast event (?<eventId>[a-zA-Z0-9_-]+) should (?<operator>be set|not be set|be less than|be greater than|be one of|be|contain|not be one of|not be|not contain|match|not match) ?(?<expectation>.+)?');
     expect(stepDef.getType()).to.equal(StepDefinition.Type.VALIDATION);
   });
 
@@ -38,21 +37,25 @@ describe('UserFieldEqualsStep', () => {
       return field.toObject();
     });
 
+    // eventId field
+    const eventId: any = fields.filter(f => f.key === 'eventId')[0];
+    expect(eventId.optionality).to.equal(FieldDefinition.Optionality.REQUIRED);
+    expect(eventId.type).to.equal(FieldDefinition.Type.STRING);
+
     // Field field
     const field: any = fields.filter(f => f.key === 'field')[0];
     expect(field.optionality).to.equal(FieldDefinition.Optionality.REQUIRED);
     expect(field.type).to.equal(FieldDefinition.Type.STRING);
 
-    // Email field
-    const email: any = fields.filter(f => f.key === 'email')[0];
-    expect(email.optionality).to.equal(FieldDefinition.Optionality.REQUIRED);
-    expect(email.type).to.equal(FieldDefinition.Type.EMAIL);
-    expect(!!email.help).to.equal(true);
+    // Operator field
+    const operator: any = fields.filter(f => f.key === 'operator')[0];
+    expect(operator.optionality).to.equal(FieldDefinition.Optionality.OPTIONAL);
+    expect(operator.type).to.equal(FieldDefinition.Type.STRING);
 
-    // Expected Value field
-    const expectedValue: any = fields.filter(f => f.key === 'expectedValue')[0];
-    expect(expectedValue.optionality).to.equal(FieldDefinition.Optionality.OPTIONAL);
-    expect(expectedValue.type).to.equal(FieldDefinition.Type.ANYSCALAR);
+    // Expectation field
+    const expectation: any = fields.filter(f => f.key === 'expectation')[0];
+    expect(expectation.optionality).to.equal(FieldDefinition.Optionality.OPTIONAL);
+    expect(expectation.type).to.equal(FieldDefinition.Type.ANYSCALAR);
   });
 
   it('should return expected step records', () => {
@@ -61,70 +64,84 @@ describe('UserFieldEqualsStep', () => {
       return record.toObject();
     });
 
-    // User record
-    const user: any = records.filter(r => r.id === 'user')[0];
-    expect(user.type).to.equal(RecordDefinition.Type.KEYVALUE);
-    expect(user.mayHaveMoreFields).to.equal(true);
+    // Event record
+    const event: any = records.filter(r => r.id === 'event')[0];
+    expect(event.type).to.equal(RecordDefinition.Type.KEYVALUE);
+    expect(event.mayHaveMoreFields).to.equal(true);
 
-    // User record ID field
-    const userId: any = user.guaranteedFieldsList.filter(f => f.key === 'id')[0];
-    expect(userId.type).to.equal(FieldDefinition.Type.NUMERIC);
+    // Event record ID field
+    const eventId: any = event.guaranteedFieldsList.filter(f => f.key === 'id')[0];
+    expect(eventId.type).to.equal(FieldDefinition.Type.STRING);
 
-    // User record name field
-    const userName: any = user.guaranteedFieldsList.filter(f => f.key === 'name')[0];
-    expect(userName.type).to.equal(FieldDefinition.Type.STRING);
+    // Event record title field
+    const eventTitle: any = event.guaranteedFieldsList.filter(f => f.key === 'title')[0];
+    expect(eventTitle.type).to.equal(FieldDefinition.Type.STRING);
 
-    // User record email field
-    const userEmail: any = user.guaranteedFieldsList.filter(f => f.key === 'email')[0];
-    expect(userEmail.type).to.equal(FieldDefinition.Type.EMAIL);
+    // Event record description field
+    const eventDescription: any = event.guaranteedFieldsList.filter(f => f.key === 'description')[0];
+    expect(eventDescription.type).to.equal(FieldDefinition.Type.STRING);
+
+    // Event record type field
+    const eventType: any = event.guaranteedFieldsList.filter(f => f.key === 'event_type')[0];
+    expect(eventType.type).to.equal(FieldDefinition.Type.STRING);
   });
 
   it('should respond with pass if API client resolves expected data', async () => {
     // Stub a response that matches expectations.
-    const expectedUser: any = {someField: 'Expected Value'};
-    apiClientStub.getUserByEmail.resolves({body: [expectedUser]})
+    const expectedEvent: any = {
+      id: '123-abc-789-xyz', 
+      someField: 'Expected Value',
+      title: 'Some Title',
+      description: 'description',
+      event_type: 'Webinar',
+    };
+    apiClientStub.getEvents.returns(Promise.resolve([expectedEvent]))
 
     // Set step data corresponding to expectations
     protoStep.setData(Struct.fromJavaScript({
       field: 'someField',
-      expectedValue: expectedUser.someField,
-      email: 'anything@example.com',
+      expectation: 'Expected Value',
+      eventId: '123-abc-789-xyz',
       operator: 'be',
     }));
 
     const response: RunStepResponse = await stepUnderTest.executeStep(protoStep);
     const records: StepRecord[] = response.getRecordsList();
     expect(response.getOutcome()).to.equal(RunStepResponse.Outcome.PASSED);
-    expect(records[0].getId()).to.equal('user');
-    expect(records[0].getKeyValue().toJavaScript()).to.deep.equal(expectedUser);
+    expect(records[0].getId()).to.equal('event');
   });
 
   it('should respond with fail if API client resolves unexpected data', async () => {
     // Stub a response that does not match expectations.
-    const expectedUser: any = {someField: 'Expected Value'};
-    apiClientStub.getUserByEmail.resolves({body: [expectedUser]});
+    const expectedEvent: any = {
+      id: '123-abc-789-xyz', 
+      someField: 'Expected Value',
+      title: 'Some Title',
+      description: 'description',
+      event_type: 'Webinar',
+    };
+    apiClientStub.getEvents.returns(Promise.resolve([expectedEvent]))
 
     // Set step data corresponding to expectations
     protoStep.setData(Struct.fromJavaScript({
       field: 'someField',
-      expectedValue: `Not ${expectedUser.someField}`,
-      email: 'anything@example.com',
+      expectation: 'Not Expected Value',
+      eventId: '123-abc-789-xyz',
       operator: 'be',
     }));
 
     const response: RunStepResponse = await stepUnderTest.executeStep(protoStep);
     const records: StepRecord[] = response.getRecordsList();
     expect(response.getOutcome()).to.equal(RunStepResponse.Outcome.FAILED);
-    expect(records[0].getId()).to.equal('user');
-    expect(records[0].getKeyValue().toJavaScript()).to.deep.equal(expectedUser);
+    expect(records[0].getId()).to.equal('event');
   });
 
   it('should respond with error if API client resolves no results', async () => {
     // Stub a response with no results in the body.
-    apiClientStub.getUserByEmail.resolves({body: []});
+    apiClientStub.getEvents.resolves({body: []});
     protoStep.setData(Struct.fromJavaScript({
       field: 'anyField',
-      expectedValue: 'Any Value',
+      expectation: 'Any Value',
       email: 'anything@example.com',
       operator: 'be',
     }));
@@ -133,27 +150,32 @@ describe('UserFieldEqualsStep', () => {
     expect(response.getOutcome()).to.equal(RunStepResponse.Outcome.ERROR);
   });
 
-  it('should respond with error if resolved user does not contain given field', async () => {
+  it('should respond with fail if resolved user does not contain given field', async () => {
     // Stub a response with valid response, but no expected field.
-    const expectedUser: any = {someField: 'Expected Value'};
-    apiClientStub.getUserByEmail.resolves({body: [expectedUser]});
+    const expectedEvent: any = {
+      id: '123-abc-789-xyz',
+      title: 'Some Title',
+      description: 'description',
+      event_type: 'Webinar',
+    };
+    apiClientStub.getEvents.returns(Promise.resolve([expectedEvent]))
+
     protoStep.setData(Struct.fromJavaScript({
-      field: 'someOtherField',
-      expectedValue: 'Any Value',
-      email: 'anything@example.com',
+      field: 'someField',
+      expectation: 'Not Expected Value',
+      eventId: '123-abc-789-xyz',
       operator: 'be',
     }));
 
     const response: RunStepResponse = await stepUnderTest.executeStep(protoStep);
     const records: StepRecord[] = response.getRecordsList();
-    expect(response.getOutcome()).to.equal(RunStepResponse.Outcome.ERROR);
-    expect(records[0].getId()).to.equal('user');
-    expect(records[0].getKeyValue().toJavaScript()).to.deep.equal(expectedUser);
+    expect(response.getOutcome()).to.equal(RunStepResponse.Outcome.FAILED);
+    expect(records[0].getId()).to.equal('event');
   });
 
   it('should respond with error if API client throws error', async () => {
     // Stub a response that throws any exception.
-    apiClientStub.getUserByEmail.throws();
+    apiClientStub.getEvents.throws();
     protoStep.setData(Struct.fromJavaScript({
       operator: 'be',
     }));
@@ -162,7 +184,7 @@ describe('UserFieldEqualsStep', () => {
     expect(response.getOutcome()).to.equal(RunStepResponse.Outcome.ERROR);
   });
 
-  it('should respond with error if expectedValue was not provided and operator is not either "be set" or "not be set"', async () => {
+  it('should respond with error if expectation was not provided and operator is not either "be set" or "not be set"', async () => {
     protoStep.setData(Struct.fromJavaScript({
       field: 'email',
       email: 'anything@example.com',

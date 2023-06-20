@@ -1,6 +1,6 @@
 import { ClientWrapper } from '../client/client-wrapper';
 import { promisify } from 'util';
-​​
+
 class CachingClientWrapper {
   // cachePrefix is scoped to the specific scenario, request, and requestor
   public cachePrefix = `${this.idMap.scenarioId}${this.idMap.requestorId}${this.idMap.connectionId}`;
@@ -13,14 +13,14 @@ class CachingClientWrapper {
   // Event aware methods
   // -------------------------------------------------------------------
 
-  public async getEvents(id: string) {
-    const cachekey = `Goldcast|Events|${id}|${this.cachePrefix}`;
+  public async getEvents() {
+    const cachekey = `Goldcast|Events|${this.cachePrefix}`;
     const stored = await this.getCache(cachekey);
     if (stored) {
       return stored;
     }
 
-    const result = await this.client.getEvents(id);
+    const result = await this.client.getEvents();
     if (result) {
       await this.setCache(cachekey, result);
     }
@@ -28,7 +28,7 @@ class CachingClientWrapper {
   }
 
   public async getEventRegistrants(id: string) {
-    const cachekey = `Goldcast|Event Registrants|${id}|${this.cachePrefix}`;
+    const cachekey = `Goldcast|EventRegistrants|${id}|${this.cachePrefix}`;
     const stored = await this.getCache(cachekey);
     if (stored) {
       return stored;
@@ -42,7 +42,7 @@ class CachingClientWrapper {
   }
 
   public async getEventMembers(id: string) {
-    const cachekey = `Goldcast|Event Members|${id}|${this.cachePrefix}`;
+    const cachekey = `Goldcast|EventMembers|${id}|${this.cachePrefix}`;
     const stored = await this.getCache(cachekey);
     if (stored) {
       return stored;
@@ -55,23 +55,8 @@ class CachingClientWrapper {
     return result;
   }
 
-  
-  
-
   // all non-cached methods, just referencing the original function
   // -------------------------------------------------------------------
-
-  public isDate(value) {
-    return this.client.isDate(value);
-  }
-
-  public toDate(epoch: number) {
-    return this.client.toDate(epoch);
-  }
-
-  public toEpoch(date: Date) {
-    return this.client.toEpoch(date);
-  }
 
   // Redis methods for get, set, and delete
   // -------------------------------------------------------------------
@@ -128,5 +113,5 @@ class CachingClientWrapper {
   }
 
 }
-​
+
 export { CachingClientWrapper as CachingClientWrapper };

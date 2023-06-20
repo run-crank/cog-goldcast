@@ -17,10 +17,12 @@ export class EventFieldEqualsStep extends BaseStep implements StepInterface {
     field: 'eventId',
     type: FieldDefinition.Type.STRING,
     description: 'Event ID',
+    optionality: FieldDefinition.Optionality.REQUIRED,
   }, {
     field: 'field',
     type: FieldDefinition.Type.STRING,
     description: 'Field name to check',
+    optionality: FieldDefinition.Optionality.REQUIRED,
   }, {
     field: 'operator',
     type: FieldDefinition.Type.STRING,
@@ -36,21 +38,21 @@ export class EventFieldEqualsStep extends BaseStep implements StepInterface {
     id: 'event',
     type: RecordDefinition.Type.KEYVALUE,
     fields: [{
-      field: 'event_type',
+      field: 'id',
       type: FieldDefinition.Type.STRING,
-      description: "Event Type",
+      description: 'Event ID',
     }, {
       field: 'title',
       type: FieldDefinition.Type.STRING,
-      description: "Title",
+      description: 'Title',
     }, {
-      field: 'short_name',
+      field: 'description',
       type: FieldDefinition.Type.STRING,
-      description: "Short Name",
+      description: 'Description',
     }, {
-      field: 'registration_page',
+      field: 'event_type',
       type: FieldDefinition.Type.STRING,
-      description: "Registration Page",
+      description: 'Event Type',
     }],
     dynamicFields: true,
   }];
@@ -58,7 +60,7 @@ export class EventFieldEqualsStep extends BaseStep implements StepInterface {
   async executeStep(step: Step) {
     const stepData: any = step.getData() ? step.getData().toJavaScript() : {};
     const expectedValue = stepData.expectation;
-    const eventId = stepData.eventId || '12345'; 
+    const eventId = stepData.eventId;
     const operator: string = stepData.operator || 'be';
     const field = stepData.field;
 
@@ -67,21 +69,31 @@ export class EventFieldEqualsStep extends BaseStep implements StepInterface {
     }
 
     try {
-      let data: any = await this.client.getEvents(eventId);
-      data = data.data;
-      // There is an issue with bigInt where the it is not showing the complete registrantId
-      // Using regex, put quotes on the registrantKey to get full key when parsed
-      data = data.replace(/([\[:])?(\d+)([,\}\]])/g, '$1\"$2\"$3');
-      data = JSON.parse(data);
-      const records = this.createRecords(data, stepData['__stepOrder']);
+      const data: any = await this.client.getEvents();
 
-      if (data && data.hasOwnProperty(field)) {
-        const result = this.assert(operator, data[field], expectedValue, field, stepData['__piiSuppressionLevel']);
+      const matchingRecords = data.filter((d: any) => d.id === eventId);
+      if (!matchingRecords || !matchingRecords.length) {
+        return this.fail("Couldn't find a event with id %s", [
+          eventId,
+        ]);
+      }
+
+      if (matchingRecords.length > 1) {
+        return this.fail('Found more than one record with id %s', [
+          eventId,
+        ]);
+      }
+
+      const event = matchingRecords[0];
+      const records = this.createRecords(event, stepData['__stepOrder']);
+
+      if (event && event.hasOwnProperty(field)) {
+        const result = this.assert(operator, event[field], expectedValue, field, stepData['__piiSuppressionLevel']);
         return result.valid ? this.pass(result.message, [], records)
           : this.fail(result.message, [], records);
 
       } else {
-        if (data && !data.hasOwnProperty(field)) {
+        if (event && !event.hasOwnProperty(field)) {
           return this.fail(
             'Found the event with id %s, but there was no %s field.',
             [eventId, field],
@@ -108,7 +120,7 @@ export class EventFieldEqualsStep extends BaseStep implements StepInterface {
     }
   }
 
-  createRecords(registrant: Record<string, any>, stepOrder = 1) {
+  createRecords(event: Record<string, any>, stepOrder = 1) {
     const records = [];
     // Base Record
     records.push(this.keyValue('event', 'Checked Event', event));
