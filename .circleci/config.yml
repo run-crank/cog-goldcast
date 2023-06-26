@@ -7,7 +7,7 @@ executors:
       - image: cimg/base:stable
   docker-user:
     environment:
-      IMAGE_NAME: automatoninc/goldcast
+      IMAGE_NAME: automatondevs/goldcast
     machine:
       image: ubuntu-2004:202201-02
 

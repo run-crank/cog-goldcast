@@ -1,0 +1,7 @@
+scenario: Demonstrate the Goldcast Cog
+description: A scenario that checks a field on an event
+
+steps:
+- step: the id field on goldcast event e86aaead-e2e9-4c40-ae0a-40ac6d19d78e should be e86aaead-e2e9-4c40-ae0a-40ac6d19d78e
+# - step: the email field on goldcast registrant with email russellbot2@stackmoxie.com for event e86aaead-e2e9-4c40-ae0a-40ac6d19d78e should be russellbot2@stackmoxie.com
+- step: the id field on goldcast event member 12345 should be 12345
